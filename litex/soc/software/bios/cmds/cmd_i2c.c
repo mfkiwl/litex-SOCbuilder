@@ -12,30 +12,30 @@
 
 
 /**
- * Command "i2creset"
+ * Command "i2c_reset"
  *
  * Reset I2C line state in case a slave locks the line.
  *
  */
 #ifdef CSR_I2C_BASE
-define_command(i2creset, i2c_reset, "Reset I2C line state", I2C_CMDS);
+define_command(i2c_reset, i2c_reset, "Reset I2C line state", I2C_CMDS);
 #endif
 
 /**
- * Command "i2cwr"
+ * Command "i2c_write"
  *
  * Write I2C slave memory using 7-bit slave address and 8-bit memory address.
  *
  */
 #ifdef CSR_I2C_BASE
-static void i2cwr_handler(int nb_params, char **params)
+static void i2c_write_handler(int nb_params, char **params)
 {
 	int i;
 	char *c;
 	unsigned char write_params[32];  // also indirectly limited by CMD_LINE_BUFFER_SIZE
 
 	if (nb_params < 2) {
-		printf("i2cwr <slaveaddr7bit> <addr> [<data>, ...]");
+		printf("i2c_write <slaveaddr7bit> <addr> [<data>, ...]");
 		return;
 	}
 
@@ -57,17 +57,17 @@ static void i2cwr_handler(int nb_params, char **params)
 		return;
 	}
 }
-define_command(i2cwr, i2cwr_handler, "Write over I2C", I2C_CMDS);
+define_command(i2c_write, i2c_write_handler, "Write over I2C", I2C_CMDS);
 #endif
 
 /**
- * Command "i2crd"
+ * Command "i2c_read"
  *
  * Read I2C slave memory using 7-bit slave address and 8-bit memory address.
  *
  */
 #ifdef CSR_I2C_BASE
-static void i2crd_handler(int nb_params, char **params)
+static void i2c_read_handler(int nb_params, char **params)
 {
 	char *c;
 	int len;
@@ -76,7 +76,7 @@ static void i2crd_handler(int nb_params, char **params)
 	bool send_stop = true;
 
 	if (nb_params < 3) {
-		printf("i2crd <slaveaddr7bit> <addr> <len> [<send_stop>]");
+		printf("i2c_read <slaveaddr7bit> <addr> <len> [<send_stop>]");
 		return;
 	}
 
@@ -117,5 +117,33 @@ static void i2crd_handler(int nb_params, char **params)
 
 	dump_bytes((unsigned int *) buf, len, addr);
 }
-define_command(i2crd, i2crd_handler, "Read over I2C", I2C_CMDS);
+define_command(i2c_read, i2c_read_handler, "Read over I2C", I2C_CMDS);
+#endif
+
+
+/**
+ * Command "i2c_scan"
+ *
+ * Scan for available I2C devices
+ *
+ */
+#ifdef CSR_I2C_BASE
+static void i2c_scan_handler(int nb_params, char **params)
+{
+	int slave_addr;
+
+	printf("       0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f");
+	for (slave_addr = 0; slave_addr < 0x80; slave_addr++) {
+		if (slave_addr % 0x10 == 0) {
+			printf("\n0x%02x:", (slave_addr/0x10) * 0x10);
+		}
+		if (i2c_poll(slave_addr)) {
+			printf(" %02x");
+		} else {
+			printf(" --");
+		}
+	}
+	printf("\n");
+}
+define_command(i2c_scan, i2c_scan_handler, "Scan for I2C slaves", I2C_CMDS);
 #endif

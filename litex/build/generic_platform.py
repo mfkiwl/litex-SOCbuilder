@@ -1,9 +1,14 @@
-# This file is Copyright (c) 2013-2014 Sebastien Bourdeauducq <sb@m-labs.hk>
-# This file is Copyright (c) 2014-2019 Florent Kermarrec <florent@enjoy-digital.fr>
-# This file is Copyright (c) 2015 Yann Sionneau <ys@m-labs.hk>
-# License: BSD
+#
+# This file is part of LiteX.
+#
+# Copyright (c) 2013-2014 Sebastien Bourdeauducq <sb@m-labs.hk>
+# Copyright (c) 2014-2019 Florent Kermarrec <florent@enjoy-digital.fr>
+# Copyright (c) 2015 Yann Sionneau <ys@m-labs.hk>
+# SPDX-License-Identifier: BSD-2-Clause
 
+import sys
 import os
+import re
 
 from migen.fhdl.structure import Signal, Cat
 from migen.genlib.record import Record
@@ -288,7 +293,11 @@ class GenericPlatform:
         self.device = device
         self.constraint_manager = ConstraintManager(io, connectors)
         if name is None:
+            # Get name from Platform file.
             name = self.__module__.split(".")[-1]
+        if name == "__main__":
+            # If no Platform file, use script filename,
+            name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
         self.name = name
         self.sources = []
         self.verilog_include_paths = []
@@ -387,7 +396,8 @@ class GenericPlatform:
         # resolve signal names in constraints
         sc = self.constraint_manager.get_sig_constraints()
         named_sc = [(vns.get_name(sig), pins, others, resource)
-                    for sig, pins, others, resource in sc]
+                    for sig, pins, others, resource in sc
+                        if not re.match(r"^X+$", ''.join(pins))]
         # resolve signal names in platform commands
         pc = self.constraint_manager.get_platform_commands()
         named_pc = []

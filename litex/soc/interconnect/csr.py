@@ -1,8 +1,11 @@
-# This file is Copyright (c) 2015 Sebastien Bourdeauducq <sb@m-labs.hk>
-# This file is Copyright (c) 2015-2019 Florent Kermarrec <florent@enjoy-digital.fr>
-# This file is Copyright (c) 2016-2019 Tim 'mithro' Ansell <me@mith.ro>
-# This file is Copyright (c) 2019 Sean Cross <sean@xobs.io>
-# License: BSD
+#
+# This file is part of LiteX.
+#
+# Copyright (c) 2015 Sebastien Bourdeauducq <sb@m-labs.hk>
+# Copyright (c) 2015-2019 Florent Kermarrec <florent@enjoy-digital.fr>
+# Copyright (c) 2016-2019 Tim 'mithro' Ansell <me@mith.ro>
+# Copyright (c) 2019 Sean Cross <sean@xobs.io>
+# SPDX-License-Identifier: BSD-2-Clause
 
 
 """
@@ -187,7 +190,7 @@ class CSRField(Signal):
     """
 
     def __init__(self, name, size=1, offset=None, reset=0, description=None, pulse=False, access=None, values=None):
-        assert access is None or (access in CSRAccess.values())
+        assert access is None or (access in CSRAccess.__members__.values())
         self.name        = name
         self.size        = size
         self.offset      = offset
@@ -283,15 +286,19 @@ class CSRStatus(_CompoundCSR):
         The value of the CSRStatus register.
     """
 
-    def __init__(self, size=1, reset=0, fields=[], name=None, description=None):
+    def __init__(self, size=1, reset=0, fields=[], name=None, description=None, read_only=True):
         if fields != []:
             self.fields = CSRFieldAggregate(fields, CSRAccess.ReadOnly)
             size  = self.fields.get_size()
             reset = self.fields.get_reset()
         _CompoundCSR.__init__(self, size, name)
         self.description = description
+        self.read_only   = read_only
         self.status      = Signal(self.size, reset=reset)
         self.we          = Signal()
+        self.re          = Signal()
+        if not read_only:
+            self.r       = Signal(self.size)
         for field in fields:
             self.comb += self.status[field.offset:field.offset + field.size].eq(getattr(self.fields, field.name))
 
@@ -302,7 +309,12 @@ class CSRStatus(_CompoundCSR):
             sc    = CSR(nbits, self.name + str(i) if nwords > 1 else self.name)
             self.comb += sc.w.eq(self.status[i*busword:i*busword+nbits])
             self.simple_csrs.append(sc)
+            if not self.read_only:
+                lo = i*busword
+                hi = lo+nbits
+                self.sync += If(sc.re, self.r[lo:hi].eq(sc.r))
         self.comb += self.we.eq(sc.we)
+        self.sync += self.re.eq(sc.re)
 
     def read(self):
         """Read method for simulation."""

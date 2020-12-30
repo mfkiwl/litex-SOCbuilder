@@ -1,3 +1,6 @@
+#
+# This file is part of LiteX.
+#
 # This file is Copyright (c) 2015 Sebastien Bourdeauducq <sb@m-labs.hk>
 # This file is Copyright (c) 2015-2019 Florent Kermarrec <florent@enjoy-digital.fr>
 # This file is Copyright (c) 2018-2019 Antmicro <www.antmicro.com>
@@ -6,7 +9,7 @@
 # This file is Copyright (c) 2018 William D. Jones <thor0505@comcast.net>
 # This file is Copyright (c) 2020 Xiretza <xiretza@xiretza.xyz>
 # This file is Copyright (c) 2020 Piotr Esden-Tempski <piotr@esden.net>
-# License: BSD
+# SPDX-License-Identifier: BSD-2-Clause
 
 
 import os
@@ -34,7 +37,9 @@ soc_software_packages = [
     "liblitedram",
     "libliteeth",
     "liblitespi",
+    "libfatfs",
     "liblitesdcard",
+    "liblitesata",
     "bios"
 ]
 
@@ -59,7 +64,8 @@ class Builder:
         csr_csv          = None,
         csr_svd          = None,
         memory_x         = None,
-        bios_options     = None):
+        bios_options     = [],
+        generate_doc     = False):
         self.soc = soc
 
         # From Python doc: makedirs() will become confused if the path elements to create include '..'
@@ -71,12 +77,12 @@ class Builder:
 
         self.compile_software = compile_software
         self.compile_gateware = compile_gateware
-        self.csr_csv  = csr_csv
-        self.csr_json = csr_json
-        self.csr_svd  = csr_svd
-        self.memory_x = memory_x
-        self.bios_options = bios_options
-
+        self.csr_csv          = csr_csv
+        self.csr_json         = csr_json
+        self.csr_svd          = csr_svd
+        self.memory_x         = memory_x
+        self.bios_options     = bios_options
+        self.generate_doc     = generate_doc
         self.software_packages = []
         for name in soc_software_packages:
             self.add_software_package(name)
@@ -106,9 +112,9 @@ class Builder:
             for name, src_dir in self.software_packages:
                 define(name.upper() + "_DIRECTORY", src_dir)
 
-            if self.bios_options is not None:
-                for option in self.bios_options:
-                    define(option, "1")
+            for bios_option in self.bios_options:
+                assert bios_option in ["TERM_NO_HIST", "TERM_MINI", "TERM_NO_COMPLETE"]
+                define(bios_option, "1")
 
             write_to_file(
                 os.path.join(self.generated_dir, "variables.mak"),
@@ -210,8 +216,14 @@ class Builder:
             kwargs["run"] = self.compile_gateware
         vns = self.soc.build(build_dir=self.gateware_dir, **kwargs)
         self.soc.do_exit(vns=vns)
-        return vns
 
+        if self.generate_doc:
+            from litex.soc.doc import generate_docs
+            doc_dir = os.path.join(self.output_dir, "doc")
+            generate_docs(self.soc, doc_dir)
+            os.system(f"sphinx-build -M html {doc_dir} {doc_dir}/_build")
+
+        return vns
 
 def builder_args(parser):
     parser.add_argument("--output-dir", default=None,
@@ -244,6 +256,7 @@ def builder_args(parser):
     parser.add_argument("--memory-x", default=None,
                         help="store Mem regions in memory-x format into the "
                              "specified file")
+    parser.add_argument("--doc", action="store_true", help="Generate Documentation")
 
 
 def builder_argdict(args):
@@ -259,4 +272,5 @@ def builder_argdict(args):
         "csr_json":         args.csr_json,
         "csr_svd":          args.csr_svd,
         "memory_x":         args.memory_x,
+        "generate_doc":     args.doc,
     }

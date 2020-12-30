@@ -1,6 +1,9 @@
-# This file is Copyright (c) 2018-2019 Florent Kermarrec <florent@enjoy-digital.fr>
-# This file is Copyright (c) 2020 Antmicro <www.antmicro.com>
-# License: BSD
+#
+# This file is part of LiteX.
+#
+# Copyright (c) 2018-2019 Florent Kermarrec <florent@enjoy-digital.fr>
+# Copyright (c) 2020 Antmicro <www.antmicro.com>
+# SPDX-License-Identifier: BSD-2-Clause
 
 """AXI4 Full/Lite support for LiteX"""
 
@@ -76,6 +79,38 @@ def _connect_axi(master, slave, keep=None, omit=None):
         r.extend(m.connect(s, keep=keep, omit=omit))
     return r
 
+def connect_to_pads(bus, pads, mode="master", axi_full=False):
+    assert mode in ["slave", "master"]
+    r = []
+    def swap_mode(mode): return "master" if mode == "slave" else "slave"
+    channel_modes = {
+        "aw": mode,
+        "w" : mode,
+        "b" : swap_mode(mode),
+        "ar": mode,
+        "r" : swap_mode(mode),
+    }
+    for channel, mode in channel_modes.items():
+        ch = getattr(bus, channel)
+        for name, width in (
+            [("valid", 1)] +
+            [("last",  1)] if (ch in ["w", "r"] and axi_full) else [] +
+            ch.description.payload_layout):
+            sig  = getattr(ch, name)
+            pad  = getattr(pads, channel + name)
+            if mode == "master":
+                r.append(pad.eq(sig))
+            else:
+                r.append(sig.eq(pad))
+        for name, width in [("ready", 1)]:
+            sig  = getattr(ch, name)
+            pad  = getattr(pads, channel + name)
+            if mode == "master":
+                r.append(sig.eq(pad))
+            else:
+                r.append(pad.eq(sig))
+    return r
+
 def _axi_layout_flat(axi):
     # yields tuples (channel, name, direction)
     def get_dir(channel, direction):
@@ -106,6 +141,19 @@ class AXIInterface:
         self.b  = stream.Endpoint(b_description(id_width))
         self.ar = stream.Endpoint(ax_description(address_width, id_width))
         self.r  = stream.Endpoint(r_description(data_width, id_width))
+
+    def connect_to_pads(self, pads, mode="master"):
+        return connect_to_pads(self, pads, mode, axi_full=True)
+
+    def get_ios(self, bus_name="wb"):
+        subsignals = []
+        for channel in ["aw", "w", "b", "ar", "r"]:
+            for name in ["valid", "ready"] + (["last"] if channel in ["w", "r"] else []):
+                subsignals.append(Subsignal(channel + name, Pins(1)))
+            for name, width in getattr(self, channel).description.payload_layout:
+                subsignals.append(Subsignal(channel + name, Pins(width)))
+        ios = [(bus_name , 0) + tuple(subsignals)]
+        return ios
 
     def connect(self, slave, **kwargs):
         return _connect_axi(self, slave, **kwargs)
@@ -156,32 +204,7 @@ class AXILiteInterface:
         return ios
 
     def connect_to_pads(self, pads, mode="master"):
-        assert mode in ["slave", "master"]
-        r = []
-        def swap_mode(mode): return "master" if mode == "slave" else "slave"
-        channel_modes = {
-            "aw": mode,
-            "w" : mode,
-            "b" : swap_mode(mode),
-            "ar": mode,
-            "r" : swap_mode(mode),
-        }
-        for channel, mode in channel_modes.items():
-            for name, width in [("valid", 1)] + getattr(self, channel).description.payload_layout:
-                sig  = getattr(getattr(self, channel), name)
-                pad  = getattr(pads, channel + name)
-                if mode == "master":
-                    r.append(pad.eq(sig))
-                else:
-                    r.append(sig.eq(pad))
-            for name, width in [("ready", 1)]:
-                sig  = getattr(getattr(self, channel), name)
-                pad  = getattr(pads, channel + name)
-                if mode == "master":
-                    r.append(sig.eq(pad))
-                else:
-                    r.append(pad.eq(sig))
-        return r
+        return connect_to_pads(self, pads, mode)
 
     def connect(self, slave, **kwargs):
         return _connect_axi(self, slave, **kwargs)
@@ -238,10 +261,11 @@ class AXIStreamInterface(stream.Endpoint):
     def __init__(self, data_width=32, user_width=0):
         self.data_width = data_width
         self.user_width = user_width
-        axi_layout = [("data", data_width)]
+        payload_layout = [("data", data_width)]
+        param_layout   = []
         if self.user_width:
-            axi_layout += [("user", user_width)]
-        stream.Endpoint.__init__(self, axi_layout)
+            param_layout += [("user", user_width)]
+        stream.Endpoint.__init__(self, stream.EndpointDescription(payload_layout, param_layout))
 
     def get_ios(self, bus_name="axi"):
         subsignals = [
@@ -729,7 +753,8 @@ def axi_lite_to_simple(axi_lite, port_adr, port_dat_r, port_dat_w=None, port_we=
     return fsm, comb
 
 class AXILite2CSR(Module):
-    def __init__(self, axi_lite=None, bus_csr=None):
+    def __init__(self, axi_lite=None, bus_csr=None, register=False):
+        # TODO: unused register argument
         if axi_lite is None:
             axi_lite = AXILiteInterface()
         if bus_csr is None:

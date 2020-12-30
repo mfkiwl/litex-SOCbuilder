@@ -11,7 +11,7 @@ extern "C" {
 
 __attribute__((unused)) static void flush_cpu_icache(void)
 {
-#if defined(CONFIG_CPU_VARIANT_MIN)
+#if defined(CONFIG_CPU_VARIANT_MINIMAL)
   /* No instruction cache */
 #else
   asm volatile(
@@ -27,7 +27,7 @@ __attribute__((unused)) static void flush_cpu_icache(void)
 
 __attribute__((unused)) static void flush_cpu_dcache(void)
 {
-#if defined(CONFIG_CPU_VARIANT_MIN) || defined(CONFIG_CPU_VARIANT_LITE)
+#if defined(CONFIG_CPU_VARIANT_MINIMAL) || defined(CONFIG_CPU_VARIANT_LITE)
   /* No data cache */
 #else
   asm volatile(".word(0x500F)\n");
@@ -37,6 +37,7 @@ __attribute__((unused)) static void flush_cpu_dcache(void)
 void flush_l2_cache(void);
 
 void busy_wait(unsigned int ms);
+void busy_wait_us(unsigned int us);
 
 #define csrr(reg) ({ unsigned long __tmp; \
   asm volatile ("csrr %0, " #reg : "=r"(__tmp)); \

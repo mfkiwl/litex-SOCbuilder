@@ -10,10 +10,11 @@
 
 #include <generated/csr.h>
 #include <generated/mem.h>
+#include <generated/soc.h>
 #include <system.h>
 
-#include "fat/ff.h"
-#include "fat/diskio.h"
+#include <libfatfs/ff.h>
+#include <libfatfs/diskio.h>
 #include "spisdcard.h"
 
 #ifdef CSR_SPISDCARD_BASE
@@ -122,16 +123,6 @@ static void spisdcardread_bytes(uint8_t* buf, uint16_t n) {
 /*-----------------------------------------------------------------------*/
 /* SPI SDCard blocks Xfer functions                                      */
 /*-----------------------------------------------------------------------*/
-
-static void busy_wait_us(unsigned int us)
-{
-    timer0_en_write(0);
-    timer0_reload_write(0);
-    timer0_load_write(CONFIG_CLOCK_FREQUENCY/1000000*us);
-    timer0_en_write(1);
-    timer0_update_value_write(1);
-    while(timer0_value_read()) timer0_update_value_write(1);
-}
 
 static uint8_t spisdcardreceive_block(uint8_t *buf) {
     uint16_t i;

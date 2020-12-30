@@ -1,5 +1,8 @@
-# This file is Copyright (c) 2020 Florent Kermarrec <florent@enjoy-digital.fr>
-# License: BSD
+#
+# This file is part of LiteX.
+#
+# Copyright (c) 2020 Florent Kermarrec <florent@enjoy-digital.fr>
+# SPDX-License-Identifier: BSD-2-Clause
 
 """Direct Memory Access (DMA) reader and writer modules."""
 
@@ -72,7 +75,7 @@ class WishboneDMAReader(Module, AutoCSR):
             self.add_csr()
 
     def add_csr(self):
-        self._base   = CSRStorage(32)
+        self._base   = CSRStorage(64)
         self._length = CSRStorage(32)
         self._enable = CSRStorage()
         self._done   = CSRStatus()
@@ -158,7 +161,7 @@ class WishboneDMAWriter(Module, AutoCSR):
         self._sink = self.sink
         self.sink  = stream.Endpoint([("data", self.bus.data_width)])
 
-        self._base   = CSRStorage(32)
+        self._base   = CSRStorage(64)
         self._length = CSRStorage(32)
         self._enable = CSRStorage()
         self._done   = CSRStatus()
